@@ -30,3 +30,13 @@
 *.exe
 *.out
 *.app
+
+# Testing
+pirate_tests
+
+# CMake
+build
+
+# VS Code
+.clangd
+.cache
