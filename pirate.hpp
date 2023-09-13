@@ -19,10 +19,20 @@ class Args {
    * @param key : argument key to add
    * @param required : true if the argument is required
    */
-  static void register_arg(std::string_view key, bool required) {
+  static void register_arg(std::string_view key, bool required, bool valueRequired) {
     get_arg_set().emplace(key);
     if (required) get_req_set().emplace(key);
+    if (valueRequired) get_val_set().emplace(key);
   }
+
+  /**
+   * @brief Returns true if the argument is present
+   * 
+   * @param key : argument key
+   * @return true 
+   * @return false 
+   */
+  auto has(std::string_view key) -> bool { return _args.find(key) != _args.end(); }
 
   /**
    * @brief Returns the argument with the given key
@@ -85,7 +95,7 @@ class Args {
       if ((*arg)[0] != '-') throw std::runtime_error("Unknown Flag: " + *arg);
 
       auto [flag, val] = split_arg(*arg);
-      if (validate_flag(flag)) {
+      if (validate_flag(flag, val)) {
         _args[flag] = val;
         continue;
       }
@@ -99,7 +109,7 @@ class Args {
   void validate_composite_flag(const std::string& arg) {
     auto flags = split_single_letter_args(arg);
     for (const auto& flag : flags) {
-      if (!validate_flag(flag)) throw std::runtime_error("Unknown Flag: " + flag);
+      if (!validate_flag(flag, "")) throw std::runtime_error("Unknown Flag: " + flag);
       _args[flag] = "";
     }
   }
@@ -109,8 +119,16 @@ class Args {
    * 
    * @param flag : flag to check
    */
-  static auto validate_flag(std::string_view flag) -> bool {
-    return get_arg_set().find(flag) != get_arg_set().end();
+  static auto validate_flag(std::string_view flag, std::string_view value) -> bool {
+    auto& argSet = get_arg_set();
+    auto  iter = argSet.find(flag);
+    if (iter == argSet.end()) return false;
+
+    auto& valSet = get_val_set();
+    auto  valIter = valSet.find(flag);
+    if (valIter == valSet.end()) return true;
+
+    return !value.empty();
   }
 
   /**
@@ -143,6 +161,11 @@ class Args {
   static inline auto get_req_set() -> std::set<std::string, std::less<>>& {
     static std::set<std::string, std::less<>> reqSet;
     return reqSet;
+  }
+
+  static inline auto get_val_set() -> std::set<std::string, std::less<>>& {
+    static std::set<std::string, std::less<>> valSet;
+    return valSet;
   }
 };
 }  // namespace pirate

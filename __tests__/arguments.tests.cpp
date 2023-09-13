@@ -9,10 +9,10 @@
 #include "pirate.hpp"
 
 TEST(Args, parse) {
-  pirate::Args::register_arg("config", false);
-  pirate::Args::register_arg("a", false);
-  pirate::Args::register_arg("b", false);
-  pirate::Args::register_arg("c", false);
+  pirate::Args::register_arg("config", false, true);
+  pirate::Args::register_arg("a", false, false);
+  pirate::Args::register_arg("b", false, false);
+  pirate::Args::register_arg("c", false, false);
 
   int         argc1 = 3;
   const char* argv1[] = {"pirate", "test", "another"};
