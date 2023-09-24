@@ -6,24 +6,34 @@
 #include <set>
 #include <stdexcept>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
+
+#include "types/arg_types.hpp"
 
 namespace pirate {
 class Args {
+ private:
+  using ArgsMap = std::map<std::string, std::string, std::less<>>;
+  using ArgsSet = std::set<std::string, std::less<>>;
+
  public:
   explicit Args(int argc, const char** argv) { parse(format(argc, argv)); }
+
+  /**
+   * @brief Adds an argument flag that can be accepted
+   * 
+   * @param key : argument key to add
+   */
+  static void register_arg(const std::string& key) { get_arg_map()[key] = ArgType::OPTIONAL; }
 
   /**
    * @brief Adds an argument flag that can be accepted, and marks it required
    * 
    * @param key : argument key to add
-   * @param required : true if the argument is required
+   * @param type : argument type
    */
-  static void register_arg(std::string_view key, bool required, bool valueRequired) {
-    get_arg_set().emplace(key);
-    if (required) get_req_set().emplace(key);
-    if (valueRequired) get_val_set().emplace(key);
-  }
+  static void register_arg(const std::string& key, ArgType type) { get_arg_map()[key] = type; }
 
   /**
    * @brief Returns true if the argument is present
@@ -55,12 +65,12 @@ class Args {
   auto count() -> size_t { return _args.size(); }
 
   static void reset() {
-    get_arg_set().clear();
+    get_arg_map().clear();
     get_req_set().clear();
   }
 
  private:
-  std::map<std::string, std::string, std::less<>> _args{};
+  ArgsMap _args{};
 
   /**
    * @brief Splits an argument into its key/value
@@ -95,23 +105,33 @@ class Args {
       if ((*arg)[0] != '-') throw std::runtime_error("Unknown Flag: " + *arg);
 
       auto [flag, val] = split_arg(*arg);
-      if (validate_flag(flag, val)) {
+
+      auto [fullValid, fullError] = validate_flag(flag, val);
+      if (fullValid) {
         _args[flag] = val;
         continue;
       }
 
-      validate_composite_flag(flag);
+      auto [compositeValid, compositeError] = validate_composite_flag(flag);
+      if (compositeValid) {
+        continue;
+      }
+
+      throw std::runtime_error(fullError + ": " += flag);
     }
 
     check_required(_args);
   }
 
-  void validate_composite_flag(const std::string& arg) {
+  auto validate_composite_flag(const std::string& arg) -> std::pair<bool, std::string> {
     auto flags = split_single_letter_args(arg);
     for (const auto& flag : flags) {
-      if (!validate_flag(flag, "")) throw std::runtime_error("Unknown Flag: " + flag);
+      auto valid = validate_flag(flag, "");
+      if (!valid.first) return valid;
       _args[flag] = "";
     }
+
+    return {true, ""};
   }
 
   /**
@@ -119,16 +139,18 @@ class Args {
    * 
    * @param flag : flag to check
    */
-  static auto validate_flag(std::string_view flag, std::string_view value) -> bool {
-    auto& argSet = get_arg_set();
+  static auto validate_flag(std::string_view flag, std::string_view value) -> std::pair<bool, std::string> {
+    auto& argSet = get_arg_map();
     auto  iter = argSet.find(flag);
-    if (iter == argSet.end()) return false;
+    if (iter == argSet.end()) return {false, "Unknown Flag"};
 
-    auto& valSet = get_val_set();
-    auto  valIter = valSet.find(flag);
-    if (valIter == valSet.end()) return true;
+    auto type = iter->second;
 
-    return !value.empty();
+    if ((type & ArgType::VALUE_REQUIRED) == ArgType::VALUE_REQUIRED) {
+      if (value.empty()) return {false, "Required Value Missing"};
+    }
+
+    return {true, ""};
   }
 
   /**
@@ -136,7 +158,7 @@ class Args {
    * 
    * @param args : arguments map
    */
-  static void check_required(const std::map<std::string, std::string, std::less<>>& args) {
+  static void check_required(const ArgsMap& args) {
     for (const auto& arg : get_req_set()) {
       if (args.find(arg) == args.end()) throw std::runtime_error("Missing Flag: " + arg);
     }
@@ -153,19 +175,14 @@ class Args {
     return std::vector<std::string>{argv, std::next(argv, static_cast<std::ptrdiff_t>(argc))};
   }
 
-  static inline auto get_arg_set() -> std::set<std::string, std::less<>>& {
-    static std::set<std::string, std::less<>> argSet;
+  static inline auto get_arg_map() -> std::map<std::string, ArgType, std::less<>>& {
+    static std::map<std::string, ArgType, std::less<>> argSet;
     return argSet;
   }
 
-  static inline auto get_req_set() -> std::set<std::string, std::less<>>& {
-    static std::set<std::string, std::less<>> reqSet;
+  static inline auto get_req_set() -> ArgsSet& {
+    static ArgsSet reqSet;
     return reqSet;
-  }
-
-  static inline auto get_val_set() -> std::set<std::string, std::less<>>& {
-    static std::set<std::string, std::less<>> valSet;
-    return valSet;
   }
 };
 }  // namespace pirate
