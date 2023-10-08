@@ -33,12 +33,23 @@ add_executable(
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME})
 
-add_subdirectory(../ pirate)
+target_include_directories(
+  ${PROJECT_NAME}
+  PUBLIC
+  .. pirate
+)
+
 target_link_libraries(
   ${PROJECT_NAME}
   GTest::gtest_main
   GTest::gmock_main
-  pirate
+)
+
+target_compile_options(
+  ${PROJECT_NAME} 
+  PRIVATE
+  $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Werror -Wpedantic >
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR} )
